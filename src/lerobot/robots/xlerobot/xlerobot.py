@@ -316,13 +316,12 @@ class XLerobot(Robot):
         for name in self.left_arm_motors:
             self.bus1.write("Operating_Mode", name, OperatingMode.POSITION.value)
             # Set P_Coefficient to lower value to avoid shakiness (Default is 32)
-            self.bus1.write("P_Coefficient", name, 16)
+            self.bus1.write("P_Coefficient", name, 8)
             # Set I_Coefficient and D_Coefficient to default value 0 and 32
             self.bus1.write("I_Coefficient", name, 0)
             self.bus1.write("D_Coefficient", name, 43)
-            self.bus1.write(
-                "Torque_Limit", name, 333
-            )  # Set torque limit to 80% for arm motors to avoid damage
+            self.bus1.write("Torque_Limit", name, 333)  # Set torque limit to 80% for arm motors to avoid damage
+            self.bus1.write("Acceleration_Limit", name, 50)  # Set acceleration limit to avoid sudden jerks
 
         for name in self.head_motors:
             self.bus1.write("Operating_Mode", name, OperatingMode.POSITION.value)
@@ -339,9 +338,6 @@ class XLerobot(Robot):
             # Set I_Coefficient and D_Coefficient to default value 0 and 32
             self.bus2.write("I_Coefficient", name, 0)
             self.bus2.write("D_Coefficient", name, 43)
-            self.bus2.write(
-                "Torque_Limit", name, 333
-            )  # Set torque limit to 80% for arm motors to avoid damage
 
         for name in self.base_motors:
             self.bus2.write("Operating_Mode", name, OperatingMode.VELOCITY.value)

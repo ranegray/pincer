@@ -321,7 +321,7 @@ class XLerobot(Robot):
             self.bus1.write("I_Coefficient", name, 0)
             self.bus1.write("D_Coefficient", name, 43)
             self.bus1.write("Torque_Limit", name, 333)  # Set torque limit to 80% for arm motors to avoid damage
-            self.bus1.write("Acceleration_Limit", name, 50)  # Set acceleration limit to avoid sudden jerks
+            self.bus1.write("Acceleration", name, 50)  # Set acceleration limit to avoid sudden jerks
 
         for name in self.head_motors:
             self.bus1.write("Operating_Mode", name, OperatingMode.POSITION.value)

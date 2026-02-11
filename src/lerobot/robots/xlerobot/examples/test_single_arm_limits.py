@@ -11,9 +11,18 @@ from lerobot.robots.xlerobot import XLerobot, XLerobotConfig
 def cleanup(robot: XLerobot):
     print("\nUnlocking arm and disconnecting...")
     try:
-        robot.disconnect()
+        if robot.bus1.is_connected:
+            robot.bus1.disconnect(robot.config.disable_torque_on_disconnect)
     except Exception:
         pass
+
+    # In case the script is run against dual-arm hardware in the future.
+    try:
+        if robot.bus2.is_connected:
+            robot.bus2.disconnect(robot.config.disable_torque_on_disconnect)
+    except Exception:
+        pass
+
     print("Done. Arm is free.")
 
 
@@ -93,7 +102,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    config = XLerobotConfig()
+    config = XLerobotConfig(port1=args.port)
     robot = XLerobot(config)
 
     # <C-c> handler
@@ -104,10 +113,13 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
-        # step 1: connect and calibrate
-        print(f"Connecting on {args.port}...")
-        robot.connect()
-        print("Connected and calibrated!\n")
+        # step 1: connect bus1 only and configure motors
+        print(f"Connecting bus1 on {args.port}...")
+        robot.bus1.connect()
+        robot.bus1.disable_torque()
+        robot.bus1.configure_motors()
+        robot.bus1.enable_torque()
+        print("Bus1 connected and configured!\n")
 
         # step 2: override with test limits
         apply_limits(robot, args.torque, args.acceleration, args.p, args.i, args.d)

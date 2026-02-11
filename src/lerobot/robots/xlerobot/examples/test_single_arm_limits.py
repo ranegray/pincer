@@ -4,6 +4,7 @@ import sys
 import time
 import traceback
 
+from lerobot.motors import MotorCalibration
 from lerobot.motors.feetech import OperatingMode
 from lerobot.robots.xlerobot import XLerobot, XLerobotConfig
 
@@ -44,6 +45,69 @@ def apply_limits(robot: XLerobot, torque: int, acceleration: int, p: int, i: int
         bus.write("I_Coefficient", name, i)
         bus.write("D_Coefficient", name, d)
     bus.enable_torque()
+
+
+def calibrate_bus1(robot: XLerobot):
+    bus = robot.bus1
+    motors = list(bus.motors.keys())
+
+    print("\nRunning bus1 calibration...")
+    bus.disable_torque()
+    for name in motors:
+        bus.write("Operating_Mode", name, OperatingMode.POSITION.value)
+
+    input("Move bus1 joints to the middle of their range of motion and press ENTER....")
+    homing_offsets = bus.set_half_turn_homings(motors)
+
+    print(
+        "Move all bus1 joints sequentially through their entire ranges of motion.\n"
+        "Recording positions. Press ENTER to stop..."
+    )
+    range_mins, range_maxes = bus.record_ranges_of_motion(motors)
+
+    calibration_bus1 = {}
+    for name, motor in bus.motors.items():
+        calibration_bus1[name] = MotorCalibration(
+            id=motor.id,
+            drive_mode=0,
+            homing_offset=homing_offsets[name],
+            range_min=range_mins[name],
+            range_max=range_maxes[name],
+        )
+
+    bus.write_calibration(calibration_bus1)
+    robot.calibration = {**{k: v for k, v in robot.calibration.items() if k not in bus.motors}, **calibration_bus1}
+    robot._save_calibration()
+    print("Calibration saved to", robot.calibration_fpath)
+
+
+def maybe_restore_or_calibrate_bus1(robot: XLerobot):
+    bus = robot.bus1
+    calibration_bus1 = {k: v for k, v in robot.calibration.items() if k in bus.motors}
+
+    if calibration_bus1:
+        user_input = input(
+            f"Calibration found for robot id '{robot.id}'. Press ENTER to restore it, "
+            "or type 'c' and press ENTER to recalibrate bus1: "
+        )
+        if user_input.strip().lower() != "c":
+            bus.calibration = calibration_bus1
+            bus.write_calibration(calibration_bus1)
+            print("Bus1 calibration restored from file.\n")
+            return
+
+        calibrate_bus1(robot)
+        print()
+        return
+
+    user_input = input(
+        f"No bus1 calibration found at {robot.calibration_fpath}. "
+        "Type 'c' and press ENTER to run calibration now, or any other key to abort: "
+    )
+    if user_input.strip().lower() != "c":
+        raise RuntimeError("Calibration required for safe testing. Aborting.")
+    calibrate_bus1(robot)
+    print()
 
 
 def step_reponse_test(robot: XLerobot, step_steps: int, hold_time: float):
@@ -116,6 +180,7 @@ def main():
         # step 1: connect bus1 only and configure motors
         print(f"Connecting bus1 on {args.port}...")
         robot.bus1.connect()
+        maybe_restore_or_calibrate_bus1(robot)
         robot.bus1.disable_torque()
         robot.bus1.configure_motors()
         robot.bus1.enable_torque()

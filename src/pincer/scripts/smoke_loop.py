@@ -1,7 +1,6 @@
 from pathlib import Path
 from re import T
 import signal
-import sys
 import time
 import traceback
 
@@ -31,6 +30,8 @@ MAX_STEP_DEG = 12.0
 LOOP_HZ = 10.0
 MAX_TARGET_RADIUS_M = 2.0
 STATUS_EVERY_N = 10
+TARGET_FILTER_ALPHA = 0.2
+MIN_CMD_DELTA_DEG = 0.75
 T_BASE_CAMERA_PATH = Path(__file__).resolve().parent / "calibration" / "T_base_camera.npy"
 
 
@@ -75,10 +76,11 @@ def apply_limits(robot: XLerobot):
 def main():
     robot: XLerobot | None = None
     camera: D435 | None = None
+    run_state = {"stop": False}
 
     def signal_handler(sig, frame):
-        cleanup(robot, camera)
-        sys.exit(0)
+        run_state["stop"] = True
+        print("\nStop requested, exiting loop...")
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -105,7 +107,8 @@ def main():
 
         period_s = 1.0 / LOOP_HZ
         iter_idx = 0
-        while True:
+        p_base_filtered: np.ndarray | None = None
+        while not run_state["stop"]:
             t0 = time.monotonic()
             color_image, depth_image, depth_frame = camera.read()
 
@@ -129,6 +132,10 @@ def main():
                     print(f"Skipping frame: target out of range in base frame {p_base[:3]}.")
                 iter_idx += 1
                 continue
+            if p_base_filtered is None:
+                p_base_filtered = p_base[:3].copy()
+            else:
+                p_base_filtered = (1.0 - TARGET_FILTER_ALPHA) * p_base_filtered + TARGET_FILTER_ALPHA * p_base[:3]
 
             # 3) Read current arm joints from bus1 (in degrees because use_degrees=True)
             q_curr_dict = robot.bus1.sync_read("Present_Position", ARM_MOTOR_NAMES)
@@ -138,18 +145,19 @@ def main():
             t_curr = kin.forward_kinematics(q_curr)
             t_des = np.eye(4)
             t_des[:3, :3] = t_curr[:3, :3]
-            t_des[:3, 3] = p_base[:3]
+            t_des[:3, 3] = p_base_filtered
 
             # 5) IK (input/output joint angles are degrees)
-            q_target = kin.inverse_kinematics(q_curr, t_des)
+            q_target = kin.inverse_kinematics(q_curr, t_des, orientation_weight=0.0)
 
             # 6) Send a safe position command to arm motors
             q_cmd = np.clip(q_target, q_curr - MAX_STEP_DEG, q_curr + MAX_STEP_DEG)
-            goal = {name: float(q_cmd[i]) for i, name in enumerate(ARM_MOTOR_NAMES)}
-            robot.bus1.sync_write("Goal_Position", goal)
+            if np.max(np.abs(q_cmd - q_curr)) >= MIN_CMD_DELTA_DEG:
+                goal = {name: float(q_cmd[i]) for i, name in enumerate(ARM_MOTOR_NAMES)}
+                robot.bus1.sync_write("Goal_Position", goal)
 
             if iter_idx % STATUS_EVERY_N == 0:
-                print(f"p_base={p_base[:3]}, q_curr={q_curr}, q_cmd={q_cmd}")
+                print(f"p_base_raw={p_base[:3]}, p_base_filt={p_base_filtered}, q_curr={q_curr}, q_cmd={q_cmd}")
             iter_idx += 1
 
             elapsed = time.monotonic() - t0

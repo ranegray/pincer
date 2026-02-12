@@ -1,20 +1,30 @@
 import numpy as np
 import pyrealsense2 as rs
+from pathlib import Path
 
 from lerobot.model.kinematics import RobotKinematics
 from lerobot.robots.xlerobot import XLerobot, XLerobotConfig
 from pincer.cameras.d435 import D435, D435Config
 
-robot = XLerobot(XLerobotConfig(port1="/dev/ttyACM0"))
+robot = XLerobot(XLerobotConfig(port1="/dev/ttyACM0", use_degrees=True))
 robot.bus1.connect()
 
 camera = D435(D435Config(serial="310222077874", width=640, height=480, fps=30))
 camera.start()
 
+ARM_MOTOR_NAMES = [
+    "left_arm_shoulder_pan",
+    "left_arm_shoulder_lift",
+    "left_arm_elbow_flex",
+    "left_arm_wrist_flex",
+    "left_arm_wrist_roll",
+]
+URDF_JOINT_NAMES = ["Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll"]
+
 kin = RobotKinematics(
-    urdf_path="./SO101/so101_new_calib.urdf",  # replace with XLerobot URDF
-    target_frame_name="gripper_frame_link",
-    joint_names=list(robot.bus1.motors.keys()),
+    urdf_path=str(Path(__file__).resolve().parents[1] / "assets" / "xlerobot" / "xlerobot_front.urdf"),
+    target_frame_name="Fixed_Jaw_tip",
+    joint_names=URDF_JOINT_NAMES,
 )
 
 color_image, depth_image, depth_frame = camera.read()
@@ -32,10 +42,9 @@ assert T_base_camera.shape == (4, 4), "T_base_camera must be a 4x4 matrix."
 p_cam = np.array([x_cam, y_cam, z_cam, 1.0])
 p_base = T_base_camera @ p_cam
 
-# 3) Read current joints from bus1
-motor_names = list(robot.bus1.motors.keys())
-q_curr_dict = robot.bus1.sync_read("Present_Position", motor_names)
-q_curr = np.array([q_curr_dict[m] for m in motor_names], dtype=float)
+# 3) Read current arm joints from bus1 (in degrees because use_degrees=True)
+q_curr_dict = robot.bus1.sync_read("Present_Position", ARM_MOTOR_NAMES)
+q_curr = np.array([q_curr_dict[m] for m in ARM_MOTOR_NAMES], dtype=float)
 
 # 4) Build desired EE pose:
 t_curr = kin.forward_kinematics(q_curr)

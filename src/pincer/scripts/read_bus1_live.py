@@ -13,6 +13,7 @@ def main():
         print("Torque disabled. Move joints by hand. Ctrl+C to stop.\n")
 
         while True:
+            # todo - make this a slightly more pleasent ux
             pos = robot.bus1.sync_read("Present_Position", motors)
             line = " | ".join(f"{m}: {pos[m]}" for m in motors)
             print(line, end="\r", flush=True)

@@ -59,3 +59,17 @@ q_target = kin.inverse_kinematics(q_curr, t_des)
 print(f"p_base (m): {p_base[:3]}")
 print(f"q_curr: {q_curr}")
 print(f"q_target: {q_target}")
+
+# 6) Send a safe position command to arm motors
+if np.linalg.norm(p_base[:3]) > 2.0:
+    raise RuntimeError(
+        f"Refusing to command arm: target in base frame looks invalid ({p_base[:3]} m). "
+        "Check T_base_camera calibration/units."
+    )
+
+# Limit one-step motion to avoid jumps from IK spikes.
+max_step_deg = 12.0
+q_cmd = np.clip(q_target, q_curr - max_step_deg, q_curr + max_step_deg)
+goal = {name: float(q_cmd[i]) for i, name in enumerate(ARM_MOTOR_NAMES)}
+robot.bus1.sync_write("Goal_Position", goal)
+print(f"q_cmd: {q_cmd}")

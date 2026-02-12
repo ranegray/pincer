@@ -1,4 +1,5 @@
 from pathlib import Path
+from re import T
 import signal
 import sys
 import time
@@ -30,6 +31,7 @@ MAX_STEP_DEG = 12.0
 LOOP_HZ = 10.0
 MAX_TARGET_RADIUS_M = 2.0
 STATUS_EVERY_N = 10
+T_BASE_CAMERA_PATH = Path(__file__).resolve().parent / "calibration" / "T_base_camera.npy"
 
 
 def cleanup(robot: XLerobot | None, camera: D435 | None):
@@ -97,7 +99,7 @@ def main():
             joint_names=URDF_JOINT_NAMES,
         )
 
-        t_base_camera = np.load("calibration/T_base_camera.npy")
+        t_base_camera = np.load(T_BASE_CAMERA_PATH)
         assert t_base_camera.shape == (4, 4), "T_base_camera must be a 4x4 matrix."
         print(f"Starting smoke loop at {LOOP_HZ:.1f} Hz. Press Ctrl+C to stop.")
 

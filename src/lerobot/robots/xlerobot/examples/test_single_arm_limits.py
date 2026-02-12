@@ -76,7 +76,10 @@ def calibrate_bus1(robot: XLerobot):
         )
 
     bus.write_calibration(calibration_bus1)
-    robot.calibration = {**{k: v for k, v in robot.calibration.items() if k not in bus.motors}, **calibration_bus1}
+    robot.calibration = {
+        **{k: v for k, v in robot.calibration.items() if k not in bus.motors},
+        **calibration_bus1,
+    }
     robot._save_calibration()
     print("Calibration saved to", robot.calibration_fpath)
 
@@ -166,7 +169,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    config = XLerobotConfig(port1=args.port)
+    config = XLerobotConfig()
     robot = XLerobot(config)
 
     # <C-c> handler

@@ -1,0 +1,53 @@
+<?xml version="1.0" ?>
+<robot name="xlerobot">
+    <!-- EXISTING COLLISION SETTINGS - KEEP THESE -->
+    <disable_collisions link1="Base" link2="Rotation_Pitch" reason="Adjacent"/>
+    <!-- ... all your existing disable_collisions ... -->
+    
+    <!-- VIRTUAL JOINT - connects robot to world -->
+    <virtual_joint name="virtual_joint" type="planar" parent_frame="world" child_link="base_link"/>
+    
+    <!-- PLANNING GROUPS -->
+    
+    <!-- ARM GROUP - the 5DOF manipulator -->
+    <group name="arm">
+        <joint name="Rotation"/>
+        <joint name="Pitch"/>
+        <joint name="Elbow"/>
+        <joint name="Wrist_Pitch"/>
+        <joint name="Wrist_Roll"/>
+    </group>
+    
+    <!-- GRIPPER GROUP -->
+    <group name="gripper">
+        <joint name="Jaw"/>
+    </group>
+    
+    <!-- MOBILE BASE GROUP (optional - for navigation) -->
+    <group name="mobile_base">
+        <joint name="root_x_axis_joint"/>
+        <joint name="root_y_axis_joint"/>
+        <joint name="root_z_rotation_joint"/>
+    </group>
+    
+    <!-- END EFFECTOR DEFINITION -->
+    <end_effector name="gripper" parent_link="Wrist_Pitch_Roll" group="gripper"/>
+    
+    <!-- PREDEFINED POSES -->
+    <group_state name="home" group="arm">
+        <joint name="Rotation" value="0"/>
+        <joint name="Pitch" value="0"/>
+        <joint name="Elbow" value="0"/>
+        <joint name="Wrist_Pitch" value="0"/>
+        <joint name="Wrist_Roll" value="0"/>
+    </group_state>
+    
+    <group_state name="gripper_open" group="gripper">
+        <joint name="Jaw" value="0"/>
+    </group_state>
+    
+    <group_state name="gripper_closed" group="gripper">
+        <joint name="Jaw" value="1.57"/>  <!-- adjust this value based on your gripper -->
+    </group_state>
+    
+</robot>

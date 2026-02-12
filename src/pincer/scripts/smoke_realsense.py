@@ -15,7 +15,7 @@ def main():
             h, w = depth_image.shape
             u, v = w // 2, h // 2
             z = depth_frame.get_distance(u, v)  # depth in meters
-            xyz = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)
+            xyz = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z) # type: ignore[attr-defined]
 
             vis_depth = cv2.convertScaleAbs(depth_image, alpha=0.03)
             vis_depth = cv2.applyColorMap(vis_depth, cv2.COLORMAP_JET)

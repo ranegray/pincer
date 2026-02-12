@@ -16,3 +16,7 @@ def main():
     print("\nDisconnecting from bus1...")
     robot.bus1.disconnect(robot.config.disable_torque_on_disconnect)
     print("Done.")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import numpy as np
 import pyrealsense2 as rs
-from pathlib import Path
 
 from lerobot.model.kinematics import RobotKinematics
 from lerobot.robots.xlerobot import XLerobot, XLerobotConfig

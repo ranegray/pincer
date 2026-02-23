@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lerobot.robots.xlerobot import XLerobot
+    from lerobot.robots.xlerobot.xlerobot import XLerobot
     from pincer.cameras.d435 import D435
 
 

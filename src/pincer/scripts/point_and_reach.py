@@ -10,7 +10,8 @@ import time
 import numpy as np
 import pyrealsense2 as rs
 
-from lerobot.robots.xlerobot import XLerobot, XLerobotConfig
+from lerobot.robots.xlerobot.xlerobot import XLerobot
+from lerobot.robots.xlerobot.config_xlerobot import XLerobotConfig
 from pincer.cameras.d435 import D435, D435Config
 from pincer.ik.constants import ARM_MOTORS, BASE_FRAME, CAMERA_FRAME, EE_FRAME, HEAD_MOTORS
 from pincer.ik.model import build_arm_model

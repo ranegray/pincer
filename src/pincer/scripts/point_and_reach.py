@@ -89,8 +89,15 @@ def main() -> None:
             if z <= 0:
                 continue
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
-            p_target = camera_to_base(np.array([x, y, z], dtype=float), T_base_camera)
-            p_target[2] = max(p_target[2], TABLE_Z_BASE)
+            p_cam = np.array([x, y, z], dtype=float)
+            p_target = camera_to_base(p_cam, T_base_camera)
+            # Project onto table plane along camera ray if target is below table
+            if p_target[2] < TABLE_Z_BASE:
+                p_origin = camera_to_base(np.zeros(3), T_base_camera)
+                ray = p_target - p_origin
+                if abs(ray[2]) > 1e-6:
+                    t = (TABLE_Z_BASE - p_origin[2]) / ray[2]
+                    p_target = p_origin + t * ray
             break
 
         # --- Initial IK solve ---

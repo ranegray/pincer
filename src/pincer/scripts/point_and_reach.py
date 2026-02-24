@@ -59,7 +59,7 @@ def main() -> None:
         limits = compute_arm_limits(bus)
 
         # --- Camera setup ---
-        camera = D435(D435Config(serial=CAMERA_SERIAL, width=640, height=480, fps=30, align_to_color=False))
+        camera = D435(D435Config(serial=CAMERA_SERIAL, width=640, height=480, fps=30))
         camera.start()
 
         # Print actual depth-to-color extrinsics from the hardware

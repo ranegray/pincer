@@ -16,7 +16,6 @@ from pincer.cameras.d435 import D435, D435Config
 from pincer.ik.constants import ARM_MOTORS, BASE_FRAME, CAMERA_FRAME, EE_FRAME, HEAD_MOTORS
 from pincer.ik.model import build_arm_model
 from pincer.ik.solver import ee_in_base, pan_guess_deg, solve_to_target
-from pincer.ik.trajectory import TrapezoidalTrajectory
 from pincer.ik.transforms import build_t_base_camera, camera_to_base
 from pincer.robots.xlerobot_motor_utils import clip_arm, compute_arm_limits, configure_arm_motors, read_q
 from pincer.utils import cleanup
@@ -100,31 +99,44 @@ def main() -> None:
         print(f"IK result: ok={ok}, iters={iters}, planned_err_m={ik_err:.4f}, target_base={p_target}")
         if ik_err > 0.05:
             print(f"[WARN] IK residual is high ({ik_err:.3f} m).")
-
-        # --- Build smooth trajectory ---
-        q_start = clip_arm(read_q(bus, ARM_MOTORS), limits)
-        traj = TrapezoidalTrajectory(q_start, q_goal, max_vel=60.0, max_accel=120.0)
-        print(f"Trajectory duration: {traj.duration:.2f}s. Press Ctrl+C to stop.")
+        print("Running execution loop. Press Ctrl+C to stop.")
 
         # --- Execution loop ---
         period = 1.0 / 10.0
-        t_start = time.monotonic()
+        hold = 0
+        i = 0
 
         while running:
             t0 = time.monotonic()
-            t_elapsed = t0 - t_start
 
-            q_cmd = clip_arm(traj.sample(t_elapsed), limits)
+            q_curr = clip_arm(read_q(bus, ARM_MOTORS), limits)
+            p_ee = ee_in_base(q_curr, model, data, base_fid, ee_fid)
+            err_vec = p_target - p_ee
+            err = float(np.linalg.norm(err_vec))
+
+            if err <= 0.01:
+                hold += 1
+                if hold >= 3:
+                    print(f"Reached target (err={err:.4f} m).")
+                    break
+            else:
+                hold = 0
+
+            q_seed_step = q_curr.copy()
+            if abs(float(err_vec[0])) >= 0.01:
+                q_seed_step[0] = float(np.clip(pan_guess_deg(p_target), *limits["left_arm_shoulder_pan"]))
+            q_goal, _, _, _ = solve_to_target(q_seed_step, p_target, model, data, base_fid, ee_fid, limits)
+
+            step = 10.0 if err > 0.12 else 6.0
+            q_cmd = clip_arm(np.clip(q_goal, q_curr - step, q_curr + step), limits)
             bus.sync_write("Goal_Position", {n: float(q_cmd[j]) for j, n in enumerate(ARM_MOTORS)})
 
-            if t_elapsed >= traj.duration:
-                # Trajectory complete — check final error
-                time.sleep(0.3)  # let servos settle
-                q_final = clip_arm(read_q(bus, ARM_MOTORS), limits)
-                p_ee = ee_in_base(q_final, model, data, base_fid, ee_fid)
-                err = float(np.linalg.norm(p_target - p_ee))
-                print(f"Reached target (err={err:.4f} m).")
-                break
+            if i % 20 == 0:
+                print(
+                    f"err_norm={err:.4f}, step_deg={step:.1f}, "
+                    f"q_pan={q_curr[0]:.2f}, q_lift={q_curr[1]:.2f}, q_elbow={q_curr[2]:.2f}"
+                )
+            i += 1
 
             sleep_s = period - (time.monotonic() - t0)
             if sleep_s > 0:

@@ -76,6 +76,9 @@ def main() -> None:
             q_head = np.zeros(2, dtype=float)
 
         T_base_camera = build_t_base_camera(q_arm, q_head)
+        p_cam_origin = camera_to_base(np.zeros(3), T_base_camera)
+        print(f"Head motors (deg): {q_head}")
+        print(f"Camera origin in base frame (m): {p_cam_origin}")
 
         # --- Build reduced IK model ---
         model, data, base_fid, ee_fid = build_arm_model(limits)

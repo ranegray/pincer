@@ -94,8 +94,11 @@ def main() -> None:
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
             p_cam = np.array([x, y, z], dtype=float)
             p_target = camera_to_base(p_cam, T_base_camera)
+            print(f"Depth (m): {depth_frame.get_distance(u, v):.4f}")
+            print(f"p_cam (optical): {p_cam}")
+            print(f"p_target (base, raw): {p_target}")
             p_target[2] = TABLE_Z_BASE  # reach to table surface height, keep raw X/Y
-            print(f"Target (base): {p_target}")
+            print(f"p_target (base, clamped): {p_target}")
             break
 
         # --- Initial IK solve ---

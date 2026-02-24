@@ -14,7 +14,7 @@ pincer is a personal project focused on building reliable perception-to-manipula
 
 - **so101 arm** - 5-dof manipulator with feetech sts3215 servos
 - **intel realsense d435if** - depth camera for 3d perception
-- **3d-printed head/neck mount** - camera positioning
+- **xlerobot head, neck, and shoulder mount** - 3d-printed camera positioning with pan/tilt servos
 - **jetson orin nano super** - onboard compute
 
 this is bus 1 from the [xlerobot](https://github.com/huggingface/lerobot/blob/main/examples/robots/xlerobot/README.md) setup.

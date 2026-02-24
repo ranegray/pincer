@@ -37,8 +37,12 @@ class D435:
             rs.stream.depth, self.config.width, self.config.height, rs.format.z16, self.config.fps
         )
         self._profile = self.pipeline.start(cfg)
-        depth_stream = self._profile.get_stream(rs.stream.depth).as_video_stream_profile()
-        self._intrinsics = depth_stream.get_intrinsics()
+        if config.align_to_color:
+            color_stream = self._profile.get_stream(rs.stream.color).as_video_stream_profile()
+            self._intrinsics = color_stream.get_intrinsics()
+        else:
+            depth_stream = self._profile.get_stream(rs.stream.depth).as_video_stream_profile()
+            self._intrinsics = depth_stream.get_intrinsics()
 
     def read(self) -> tuple[np.ndarray, np.ndarray, rs.depth_frame]:
         frames = self.pipeline.wait_for_frames()

@@ -85,7 +85,7 @@ def main() -> None:
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
             p_cam = np.array([x, y, z], dtype=float)
             p_target = camera_to_base(p_cam, T_base_camera)
-            p_target[2] = TABLE_Z_BASE  # reach to table surface height, keep raw X/Y
+            p_target[2] = max(p_target[2], TABLE_Z_BASE)  # clamp Z to table surface minimum
             print(f"Target in base frame (m): {p_target}")
             break
 

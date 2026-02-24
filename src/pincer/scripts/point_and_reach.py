@@ -13,6 +13,7 @@ import pyrealsense2 as rs
 from lerobot.robots.xlerobot.xlerobot import XLerobot
 from lerobot.robots.xlerobot.config_xlerobot import XLerobotConfig
 from pincer.cameras.d435 import D435, D435Config
+from pincer.detect import ColorDetector
 from pincer.ik.constants import ARM_MOTORS, BASE_FRAME, CAMERA_FRAME, EE_FRAME, HEAD_MOTORS
 from pincer.ik.model import build_arm_model
 from pincer.ik.solver import ee_in_base, pan_guess_deg, solve_to_target
@@ -74,18 +75,37 @@ def main() -> None:
         # --- Build reduced IK model ---
         model, data, base_fid, ee_fid = build_arm_model(limits)
 
-        # --- Acquire depth target at image center ---
+        # # --- Acquire depth target at image center ---
+        # while True:
+        #     _, depth_image, depth_frame = camera.read()
+        #     h, w = depth_image.shape
+        #     u, v = w // 2, h // 2
+        #     z = depth_frame.get_distance(u, v)
+        #     if z <= 0:
+        #         continue
+        #     x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
+        #     p_cam = np.array([x, y, z], dtype=float)
+        #     p_target = camera_to_base(p_cam, T_base_camera)
+        #     p_target[2] = max(p_target[2], TABLE_Z_BASE)  # clamp Z to table surface minimum
+        #     print(f"Target in base frame (m): {p_target}")
+        #     break
+
+        # --- Detect color and acquire depth target ---
+        detector = ColorDetector.from_color("red")
         while True:
-            _, depth_image, depth_frame = camera.read()
-            h, w = depth_image.shape
-            u, v = w // 2, h // 2
+            color_image, _, depth_frame = camera.read()
+            detections = detector.detect(color_image)
+            if not detections:
+                continue
+            u, v = detections[0].centroid
             z = depth_frame.get_distance(u, v)
             if z <= 0:
                 continue
+            print(f"Detected blob at ({u}, {v}), area={detections[0].area:.0f}, depth={z:.3f} m")
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
             p_cam = np.array([x, y, z], dtype=float)
             p_target = camera_to_base(p_cam, T_base_camera)
-            p_target[2] = max(p_target[2], TABLE_Z_BASE)  # clamp Z to table surface minimum
+            p_target[2] = max(p_target[2], TABLE_Z_BASE)
             print(f"Target in base frame (m): {p_target}")
             break
 

@@ -52,9 +52,13 @@ def build_t_base_camera(
     for name, q_deg in zip(ARM_JOINTS, arm_motor_to_urdf(q_arm)):
         jid = model.getJointId(name)
         q_full[model.joints[jid].idx_q] = np.deg2rad(float(q_deg))
-    for name, q_deg in zip(HEAD_JOINTS, head_motor_to_urdf(q_head)):
+    q_head_urdf = head_motor_to_urdf(q_head)
+    print(f"  [DEBUG] head motor: {q_head}, head URDF: {q_head_urdf}")
+    for name, q_deg in zip(HEAD_JOINTS, q_head_urdf):
         jid = model.getJointId(name)
-        q_full[model.joints[jid].idx_q] = np.deg2rad(float(q_deg))
+        idx = model.joints[jid].idx_q
+        q_full[idx] = np.deg2rad(float(q_deg))
+        print(f"  [DEBUG] {name}: jid={jid}, idx_q={idx}, q_deg={q_deg:.2f}, q_rad={np.deg2rad(float(q_deg)):.4f}")
 
     pin.forwardKinematics(model, data, q_full)
     pin.updateFramePlacements(model, data)

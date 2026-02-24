@@ -23,7 +23,9 @@ def head_motor_to_urdf(q_deg: np.ndarray) -> np.ndarray:
     """Convert head joint angles from motor convention to URDF convention (degrees).
 
     Pan axis is negated for correct left/right camera mapping.
+    Tilt has an offset: motor zero is not URDF zero (horizontal).
     """
     out = q_deg.copy()
     out[0] = -out[0]
+    out[1] = out[1] - 18.0
     return out

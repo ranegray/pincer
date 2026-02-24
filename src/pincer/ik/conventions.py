@@ -27,5 +27,5 @@ def head_motor_to_urdf(q_deg: np.ndarray) -> np.ndarray:
     """
     out = q_deg.copy()
     out[0] = -out[0]
-    out[1] = out[1] - 10.0
+    out[1] = out[1] - 13.0
     return out

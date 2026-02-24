@@ -124,6 +124,9 @@ def main() -> None:
                 hold += 1
                 if hold >= 3:
                     print(f"Reached target (ee_err_m={err:.4f}).")
+                    print(f"  model EE pos (base): {p_ee}")
+                    print(f"  target pos   (base): {p_target}")
+                    print(f"  q_motor: {q_curr}")
                     break
             else:
                 hold = 0

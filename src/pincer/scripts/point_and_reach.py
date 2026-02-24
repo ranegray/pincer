@@ -22,6 +22,7 @@ from pincer.utils import cleanup
 
 PORT = "/dev/ttyACM0"
 CAMERA_SERIAL = "310222077874"
+TABLE_Z_BASE = -0.08  # table surface height in base frame (m); base is ~8-10 cm above table
 
 
 def main() -> None:
@@ -61,6 +62,12 @@ def main() -> None:
         camera = D435(D435Config(serial=CAMERA_SERIAL, width=640, height=480, fps=30, align_to_color=False))
         camera.start()
 
+        # Print actual depth-to-color extrinsics from the hardware
+        depth_stream = camera._profile.get_stream(rs.stream.depth)
+        color_stream = camera._profile.get_stream(rs.stream.color)
+        extr = depth_stream.get_extrinsics_to(color_stream)
+        print(f"D435if depth->color extrinsics (m): {list(extr.translation)}")
+
         # --- Build camera->base transform from current joint config ---
         q_arm = read_q(bus, ARM_MOTORS)
         try:
@@ -83,6 +90,7 @@ def main() -> None:
                 continue
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
             p_target = camera_to_base(np.array([x, y, z], dtype=float), T_base_camera)
+            p_target[2] = max(p_target[2], TABLE_Z_BASE)
             break
 
         # --- Initial IK solve ---

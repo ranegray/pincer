@@ -26,6 +26,6 @@ def head_motor_to_urdf(q_deg: np.ndarray) -> np.ndarray:
     Tilt has an offset: motor zero is not URDF zero (horizontal).
     """
     out = q_deg.copy()
-    out[0] = -(out[0] + 10.0)
-    out[1] = out[1] - 11.0
+    out[0] = -(out[0] + 5.0)
+    out[1] = out[1] - 10.0
     return out

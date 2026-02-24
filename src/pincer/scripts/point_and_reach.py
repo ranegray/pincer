@@ -62,12 +62,6 @@ def main() -> None:
         camera = D435(D435Config(serial=CAMERA_SERIAL, width=640, height=480, fps=30))
         camera.start()
 
-        # Print actual depth-to-color extrinsics from the hardware
-        depth_stream = camera._profile.get_stream(rs.stream.depth)
-        color_stream = camera._profile.get_stream(rs.stream.color)
-        extr = depth_stream.get_extrinsics_to(color_stream)
-        print(f"D435if depth->color extrinsics (m): {list(extr.translation)}")
-
         # --- Build camera->base transform from current joint config ---
         q_arm = read_q(bus, ARM_MOTORS)
         try:
@@ -76,9 +70,6 @@ def main() -> None:
             q_head = np.zeros(2, dtype=float)
 
         T_base_camera = build_t_base_camera(q_arm, q_head)
-        p_cam_origin = camera_to_base(np.zeros(3), T_base_camera)
-        print(f"Head motors (deg): {q_head}")
-        print(f"Camera origin in base frame (m): {p_cam_origin}")
 
         # --- Build reduced IK model ---
         model, data, base_fid, ee_fid = build_arm_model(limits)
@@ -94,11 +85,8 @@ def main() -> None:
             x, y, z = rs.rs2_deproject_pixel_to_point(camera.intrinsics, [u, v], z)  # type: ignore[attr-defined]
             p_cam = np.array([x, y, z], dtype=float)
             p_target = camera_to_base(p_cam, T_base_camera)
-            print(f"Depth (m): {depth_frame.get_distance(u, v):.4f}")
-            print(f"p_cam (optical): {p_cam}")
-            print(f"p_target (base, raw): {p_target}")
             p_target[2] = TABLE_Z_BASE  # reach to table surface height, keep raw X/Y
-            print(f"p_target (base, clamped): {p_target}")
+            print(f"Target in base frame (m): {p_target}")
             break
 
         # --- Initial IK solve ---
@@ -129,10 +117,7 @@ def main() -> None:
             if err <= 0.01:
                 hold += 1
                 if hold >= 3:
-                    print(f"Reached target (ee_err_m={err:.4f}).")
-                    print(f"  model EE pos (base): {p_ee}")
-                    print(f"  target pos   (base): {p_target}")
-                    print(f"  q_motor: {q_curr}")
+                    print(f"Reached target (err={err:.4f} m).")
                     break
             else:
                 hold = 0

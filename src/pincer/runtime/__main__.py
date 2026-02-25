@@ -12,6 +12,11 @@ def main() -> None:
     parser.add_argument("--camera-serial", default="310222077874", help="RealSense camera serial")
     parser.add_argument("--host", default="0.0.0.0", help="Dashboard bind address")
     parser.add_argument("--dashboard-port", type=int, default=8080, help="Dashboard port")
+    parser.add_argument(
+        "--run-root",
+        default="runs/pincer-runtime",
+        help="Root directory where runtime run folders and .rrd episodes are stored",
+    )
     parser.add_argument("--mock", action="store_true", help="Run with synthetic data (no hardware)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
@@ -27,6 +32,7 @@ def main() -> None:
         dashboard_host=args.host,
         dashboard_port=args.dashboard_port,
         mock=args.mock,
+        run_root=args.run_root,
     )
 
     runtime = PincerRuntime(config)

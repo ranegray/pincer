@@ -14,6 +14,18 @@ export interface IKState {
   converged: boolean;
 }
 
+export interface CommandState {
+  arm: number[] | null;
+  ee_target: number[] | null;
+}
+
+export interface LoopTimingState {
+  hz: number;
+  dt_ms: number;
+  latency_ms: number;
+  overrun_ms: number;
+}
+
 export interface DetectionState {
   bboxes: [number, number, number, number][];
   centroids: [number, number][];
@@ -25,15 +37,27 @@ export interface BehaviorState {
   status: string;
 }
 
+export interface RecordingState {
+  enabled: boolean;
+  run_dir: string;
+  active_episode: string | null;
+  last_episode: string | null;
+  episode_count: number;
+  error: string | null;
+}
+
 export interface RobotTelemetry {
   stamp: number;
   joints: JointState;
   ee: number[];
   ik: IKState;
+  command: CommandState;
   detection: DetectionState;
   loop_hz: number;
+  loop: LoopTimingState;
   behavior: BehaviorState;
   torque_enabled: boolean;
+  recording: RecordingState;
 }
 
 export function useRobotState(): {

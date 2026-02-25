@@ -32,6 +32,36 @@ class DetectionSnapshot:
     label: str = ""
 
 
+@dataclass
+class CommandSnapshot:
+    """Snapshot of the latest commanded state."""
+
+    arm: np.ndarray | None = None
+    ee_target: np.ndarray | None = None
+
+
+@dataclass
+class LoopTimingSnapshot:
+    """Snapshot of loop timing statistics."""
+
+    hz: float = 0.0
+    dt_ms: float = 0.0
+    latency_ms: float = 0.0
+    overrun_ms: float = 0.0
+
+
+@dataclass
+class RecordingSnapshot:
+    """Snapshot of rerun recording status."""
+
+    enabled: bool = False
+    run_dir: str = ""
+    active_episode: str | None = None
+    last_episode: str | None = None
+    episode_count: int = 0
+    error: str | None = None
+
+
 class RobotState:
     """Thread-safe shared state between the runtime and dashboard.
 
@@ -54,6 +84,9 @@ class RobotState:
         # IK
         self._ik = IKSnapshot()
 
+        # Last command
+        self._command = CommandSnapshot()
+
         # Camera frame (raw BGR numpy array — NOT jpeg-encoded)
         self._frame: np.ndarray | None = None
         self._frame_seq: int = 0
@@ -62,7 +95,7 @@ class RobotState:
         self._detection = DetectionSnapshot()
 
         # Loop rate
-        self._loop_hz: float = 0.0
+        self._loop = LoopTimingSnapshot()
 
         # Behavior status
         self._behavior_name: str = ""
@@ -70,6 +103,9 @@ class RobotState:
 
         # Torque
         self._torque_enabled: bool = True
+
+        # Recording status
+        self._recording = RecordingSnapshot()
 
     # ---- Writer methods (called by runtime / behaviors) ----
 
@@ -106,6 +142,13 @@ class RobotState:
                 converged=converged,
             )
 
+    def update_command(self, arm: np.ndarray | None = None, ee_target: np.ndarray | None = None) -> None:
+        with self._lock:
+            self._command = CommandSnapshot(
+                arm=arm.copy() if arm is not None else None,
+                ee_target=ee_target.copy() if ee_target is not None else None,
+            )
+
     def update_frame(self, bgr: np.ndarray) -> None:
         """Store the latest camera frame.  No copy — caller overwrites each tick."""
         with self._lock:
@@ -127,7 +170,25 @@ class RobotState:
 
     def update_loop_hz(self, hz: float) -> None:
         with self._lock:
-            self._loop_hz = hz
+            self._loop.hz = hz
+            self._loop.dt_ms = 1000.0 / hz if hz > 0 else 0.0
+            self._loop.latency_ms = self._loop.dt_ms
+            self._loop.overrun_ms = 0.0
+
+    def update_loop_timing(
+        self,
+        hz: float,
+        dt_ms: float,
+        latency_ms: float,
+        overrun_ms: float,
+    ) -> None:
+        with self._lock:
+            self._loop = LoopTimingSnapshot(
+                hz=hz,
+                dt_ms=dt_ms,
+                latency_ms=latency_ms,
+                overrun_ms=overrun_ms,
+            )
 
     def update_behavior(self, name: str, status: str) -> None:
         with self._lock:
@@ -137,6 +198,26 @@ class RobotState:
     def update_torque(self, enabled: bool) -> None:
         with self._lock:
             self._torque_enabled = enabled
+
+    def update_recording(
+        self,
+        *,
+        enabled: bool,
+        run_dir: str,
+        active_episode: str | None,
+        last_episode: str | None,
+        episode_count: int,
+        error: str | None,
+    ) -> None:
+        with self._lock:
+            self._recording = RecordingSnapshot(
+                enabled=enabled,
+                run_dir=run_dir,
+                active_episode=active_episode,
+                last_episode=last_episode,
+                episode_count=episode_count,
+                error=error,
+            )
 
     # ---- Reader methods (called by dashboard server) ----
 
@@ -158,17 +239,37 @@ class RobotState:
                     "iterations": self._ik.iterations,
                     "converged": self._ik.converged,
                 },
+                "command": {
+                    "arm": self._command.arm.tolist() if self._command.arm is not None else None,
+                    "ee_target": (
+                        self._command.ee_target.tolist() if self._command.ee_target is not None else None
+                    ),
+                },
                 "detection": {
                     "bboxes": self._detection.bboxes,
                     "centroids": self._detection.centroids,
                     "label": self._detection.label,
                 },
-                "loop_hz": self._loop_hz,
+                "loop_hz": self._loop.hz,
+                "loop": {
+                    "hz": self._loop.hz,
+                    "dt_ms": self._loop.dt_ms,
+                    "latency_ms": self._loop.latency_ms,
+                    "overrun_ms": self._loop.overrun_ms,
+                },
                 "behavior": {
                     "name": self._behavior_name,
                     "status": self._behavior_status,
                 },
                 "torque_enabled": self._torque_enabled,
+                "recording": {
+                    "enabled": self._recording.enabled,
+                    "run_dir": self._recording.run_dir,
+                    "active_episode": self._recording.active_episode,
+                    "last_episode": self._recording.last_episode,
+                    "episode_count": self._recording.episode_count,
+                    "error": self._recording.error,
+                },
             }
 
     def get_frame(self) -> tuple[np.ndarray | None, int]:

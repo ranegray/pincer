@@ -5,6 +5,7 @@ import IKStatus from "./components/IKStatus";
 import EEPosition from "./components/EEPosition";
 import BehaviorControl from "./components/BehaviorControl";
 import TorqueToggle from "./components/TorqueToggle";
+import RecordToggle from "./components/RecordToggle";
 import "./App.css";
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <CameraFeed />
           <BehaviorControl behavior={state?.behavior ?? null} />
           <TorqueToggle enabled={state?.torque_enabled ?? true} />
+          <RecordToggle recording={state?.recording ?? null} />
         </div>
         <div className="col-side">
           <JointPanel

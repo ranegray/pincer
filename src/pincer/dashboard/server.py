@@ -107,6 +107,26 @@ def create_app(runtime: PincerRuntime) -> FastAPI:
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
 
+    @app.get("/api/recording")
+    async def get_recording():
+        return {"status": "ok", **runtime.get_recording_status()}
+
+    @app.post("/api/recording/start")
+    async def start_recording():
+        try:
+            runtime.start_recording()
+            return {"status": "ok", **runtime.get_recording_status()}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc), **runtime.get_recording_status()}
+
+    @app.post("/api/recording/stop")
+    async def stop_recording():
+        try:
+            runtime.stop_recording()
+            return {"status": "ok", **runtime.get_recording_status()}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc), **runtime.get_recording_status()}
+
     # Serve static frontend build if it exists
     if DIST_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="frontend")

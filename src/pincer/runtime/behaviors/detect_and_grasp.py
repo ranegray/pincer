@@ -167,6 +167,7 @@ class DetectAndGrasp(Behavior):
 
             step = 10.0 if err > 0.12 else 6.0
             q_cmd = clip_arm(np.clip(q_goal, q_curr - step, q_curr + step), limits)
+            state.update_command(arm=q_cmd, ee_target=p_target)
 
             with bus_lock:
                 bus.sync_write("Goal_Position", {n: float(q_cmd[j]) for j, n in enumerate(ARM_MOTORS)})

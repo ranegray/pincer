@@ -8,9 +8,11 @@ import signal
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
+from pincer.runtime.rerun_recorder import RerunEpisodeRecorder
 from pincer.runtime.state import RobotState
 
 logger = logging.getLogger("pincer.runtime")
@@ -28,6 +30,7 @@ class RuntimeConfig:
     dashboard_port: int = 8080
     read_hz: float = 10.0
     mock: bool = False
+    run_root: str = "runs/pincer-runtime"
 
 
 class PincerRuntime:
@@ -40,6 +43,8 @@ class PincerRuntime:
     def __init__(self, config: RuntimeConfig | None = None) -> None:
         self.config = config or RuntimeConfig()
         self.state = RobotState()
+        self.recorder = RerunEpisodeRecorder(Path(self.config.run_root))
+        self._sync_recording_state()
 
         # Hardware — initialised in start()
         self.robot = None
@@ -101,6 +106,12 @@ class PincerRuntime:
         # Disconnect hardware
         if not self.config.mock:
             self._stop_hardware()
+
+        # Stop recording and flush active episode.
+        try:
+            self.stop_recording()
+        except Exception:
+            logger.exception("Failed to finalize active rerun recording")
 
         logger.info("Runtime stopped.")
 
@@ -183,6 +194,7 @@ class PincerRuntime:
             pass
 
         self.state.update_joints(q_arm, q_head, gripper_pos)
+        self.state.update_command(arm=q_arm)
         logger.info("Hardware initialised.")
 
     def _stop_hardware(self) -> None:
@@ -208,6 +220,7 @@ class PincerRuntime:
         period = 1.0 / self.config.read_hz
         while not self._read_stop.is_set():
             t0 = time.monotonic()
+            frame_for_log = None
             try:
                 with self._bus_lock:
                     q_arm = read_q(self.bus, ARM_MOTORS)
@@ -231,13 +244,26 @@ class PincerRuntime:
                 if self.camera is not None:
                     color_image, _, _ = self.camera.read()
                     self.state.update_frame(color_image)
-
-                dt = time.monotonic() - t0
-                self.state.update_loop_hz(1.0 / max(dt, 1e-6))
+                    frame_for_log = color_image
             except Exception:
                 logger.exception("Error in read loop")
 
             elapsed = time.monotonic() - t0
+            hz = 1.0 / max(elapsed, 1e-6)
+            latency_ms = elapsed * 1000.0
+            overrun_ms = max(elapsed - period, 0.0) * 1000.0
+            self.state.update_loop_timing(
+                hz=hz,
+                dt_ms=latency_ms,
+                latency_ms=latency_ms,
+                overrun_ms=overrun_ms,
+            )
+            self.recorder.log_tick(
+                snapshot=self.state.snapshot(),
+                frame_bgr=frame_for_log,
+                wall_time_s=time.time(),
+            )
+
             sleep_s = period - elapsed
             if sleep_s > 0:
                 time.sleep(sleep_s)
@@ -267,6 +293,7 @@ class PincerRuntime:
             loads = np.abs(np.random.normal(200, 80, size=5))
 
             self.state.update_joints(q_arm, q_head, gripper, loads)
+            self.state.update_command(arm=q_arm)
 
             # Synthetic EE position
             ee = np.array([
@@ -276,10 +303,22 @@ class PincerRuntime:
             ])
             self.state.update_ee(ee)
 
-            dt = time.monotonic() - t0
-            self.state.update_loop_hz(1.0 / max(dt, 1e-6))
-
             elapsed = time.monotonic() - t0
+            hz = 1.0 / max(elapsed, 1e-6)
+            latency_ms = elapsed * 1000.0
+            overrun_ms = max(elapsed - period, 0.0) * 1000.0
+            self.state.update_loop_timing(
+                hz=hz,
+                dt_ms=latency_ms,
+                latency_ms=latency_ms,
+                overrun_ms=overrun_ms,
+            )
+            self.recorder.log_tick(
+                snapshot=self.state.snapshot(),
+                frame_bgr=None,
+                wall_time_s=time.time(),
+            )
+
             sleep_s = period - elapsed
             if sleep_s > 0:
                 time.sleep(sleep_s)
@@ -309,6 +348,43 @@ class PincerRuntime:
                 self.bus.disable_torque()
         self.state.update_torque(enabled)
         logger.info("Torque %s.", "enabled" if enabled else "disabled")
+
+    # ---- Recording control ----
+
+    def start_recording(self) -> None:
+        """Start recording telemetry to a new rerun episode (.rrd)."""
+        episode_path = self.recorder.start_recording()
+        logger.info("Recording started: %s", episode_path)
+        self._sync_recording_state()
+
+    def stop_recording(self) -> None:
+        """Stop active telemetry recording and save .rrd episode."""
+        episode_path = self.recorder.stop_recording()
+        if episode_path is not None:
+            logger.info("Recording saved: %s", episode_path)
+        self._sync_recording_state()
+
+    def get_recording_status(self) -> dict:
+        status = self.recorder.status()
+        return {
+            "enabled": status.enabled,
+            "run_dir": status.run_dir,
+            "active_episode": status.active_episode,
+            "last_episode": status.last_episode,
+            "episode_count": status.episode_count,
+            "error": status.error,
+        }
+
+    def _sync_recording_state(self) -> None:
+        status = self.recorder.status()
+        self.state.update_recording(
+            enabled=status.enabled,
+            run_dir=status.run_dir,
+            active_episode=status.active_episode,
+            last_episode=status.last_episode,
+            episode_count=status.episode_count,
+            error=status.error,
+        )
 
     # ---- Behavior engine ----
 

@@ -68,6 +68,9 @@ class RobotState:
         self._behavior_name: str = ""
         self._behavior_status: str = "idle"
 
+        # Torque
+        self._torque_enabled: bool = True
+
     # ---- Writer methods (called by runtime / behaviors) ----
 
     def update_joints(
@@ -131,6 +134,10 @@ class RobotState:
             self._behavior_name = name
             self._behavior_status = status
 
+    def update_torque(self, enabled: bool) -> None:
+        with self._lock:
+            self._torque_enabled = enabled
+
     # ---- Reader methods (called by dashboard server) ----
 
     def snapshot(self) -> dict:
@@ -161,6 +168,7 @@ class RobotState:
                     "name": self._behavior_name,
                     "status": self._behavior_status,
                 },
+                "torque_enabled": self._torque_enabled,
             }
 
     def get_frame(self) -> tuple[np.ndarray | None, int]:

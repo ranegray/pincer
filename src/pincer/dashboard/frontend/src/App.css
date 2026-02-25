@@ -246,6 +246,28 @@ button:disabled {
   }
 }
 
+/* Torque toggle */
+.torque-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.torque-label {
+  flex: 1;
+  font-size: 12px;
+}
+
+.torque-controls button {
+  padding: 4px 16px;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .grid {

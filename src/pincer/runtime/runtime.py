@@ -122,7 +122,9 @@ class PincerRuntime:
             self.config.dashboard_port,
         )
 
-        stop_event.wait()
+        # Use a timeout loop so the main thread can receive signals.
+        while not stop_event.is_set():
+            stop_event.wait(timeout=0.5)
         self.stop()
 
     # ---- Hardware init / teardown ----
@@ -293,6 +295,20 @@ class PincerRuntime:
         from pincer.dashboard.server import stop_dashboard
 
         stop_dashboard()
+
+    # ---- Torque control ----
+
+    def set_torque(self, enabled: bool) -> None:
+        """Enable or disable torque on bus1."""
+        if self.bus is None:
+            raise RuntimeError("Hardware not initialised.")
+        with self._bus_lock:
+            if enabled:
+                self.bus.enable_torque()
+            else:
+                self.bus.disable_torque()
+        self.state.update_torque(enabled)
+        logger.info("Torque %s.", "enabled" if enabled else "disabled")
 
     # ---- Behavior engine ----
 

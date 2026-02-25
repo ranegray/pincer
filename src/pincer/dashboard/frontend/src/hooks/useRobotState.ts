@@ -33,6 +33,7 @@ export interface RobotTelemetry {
   detection: DetectionState;
   loop_hz: number;
   behavior: BehaviorState;
+  torque_enabled: boolean;
 }
 
 export function useRobotState(): {

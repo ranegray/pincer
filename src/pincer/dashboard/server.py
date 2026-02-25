@@ -91,6 +91,22 @@ def create_app(runtime: PincerRuntime) -> FastAPI:
         runtime.stop_behavior()
         return {"status": "stopped"}
 
+    @app.post("/api/torque/enable")
+    async def enable_torque():
+        try:
+            runtime.set_torque(True)
+            return {"status": "ok", "torque_enabled": True}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)}
+
+    @app.post("/api/torque/disable")
+    async def disable_torque():
+        try:
+            runtime.set_torque(False)
+            return {"status": "ok", "torque_enabled": False}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)}
+
     # Serve static frontend build if it exists
     if DIST_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="frontend")

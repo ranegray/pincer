@@ -4,6 +4,7 @@ import CameraFeed from "./components/CameraFeed";
 import IKStatus from "./components/IKStatus";
 import EEPosition from "./components/EEPosition";
 import BehaviorControl from "./components/BehaviorControl";
+import TorqueToggle from "./components/TorqueToggle";
 import "./App.css";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
         <div className="col-main">
           <CameraFeed />
           <BehaviorControl behavior={state?.behavior ?? null} />
+          <TorqueToggle enabled={state?.torque_enabled ?? true} />
         </div>
         <div className="col-side">
           <JointPanel

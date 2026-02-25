@@ -1,0 +1,169 @@
+"""Thread-safe in-memory store for robot telemetry.
+
+Written by the runtime read loop and behaviors (main / worker threads),
+read by the dashboard server (background thread).
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+from dataclasses import dataclass, field
+
+import numpy as np
+
+
+@dataclass
+class IKSnapshot:
+    """Snapshot of the IK solver state."""
+
+    target: np.ndarray | None = None
+    error: float = 0.0
+    iterations: int = 0
+    converged: bool = False
+
+
+@dataclass
+class DetectionSnapshot:
+    """Snapshot of the latest detection results."""
+
+    bboxes: list[tuple[int, int, int, int]] = field(default_factory=list)
+    centroids: list[tuple[int, int]] = field(default_factory=list)
+    label: str = ""
+
+
+class RobotState:
+    """Thread-safe shared state between the runtime and dashboard.
+
+    All public methods acquire a single lock, which is fine at 10 Hz.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._stamp: float = 0.0
+
+        # Joint state
+        self._q_arm: np.ndarray = np.zeros(5)
+        self._q_head: np.ndarray = np.zeros(2)
+        self._gripper: float = 0.0
+        self._loads: np.ndarray | None = None
+
+        # End-effector
+        self._ee_pos: np.ndarray = np.zeros(3)
+
+        # IK
+        self._ik = IKSnapshot()
+
+        # Camera frame (raw BGR numpy array — NOT jpeg-encoded)
+        self._frame: np.ndarray | None = None
+        self._frame_seq: int = 0
+
+        # Detection overlay
+        self._detection = DetectionSnapshot()
+
+        # Loop rate
+        self._loop_hz: float = 0.0
+
+        # Behavior status
+        self._behavior_name: str = ""
+        self._behavior_status: str = "idle"
+
+    # ---- Writer methods (called by runtime / behaviors) ----
+
+    def update_joints(
+        self,
+        q_arm: np.ndarray,
+        q_head: np.ndarray,
+        gripper: float,
+        loads: np.ndarray | None = None,
+    ) -> None:
+        with self._lock:
+            self._q_arm = q_arm.copy()
+            self._q_head = q_head.copy()
+            self._gripper = gripper
+            self._loads = loads.copy() if loads is not None else None
+            self._stamp = time.monotonic()
+
+    def update_ee(self, pos: np.ndarray) -> None:
+        with self._lock:
+            self._ee_pos = pos.copy()
+
+    def update_ik(
+        self,
+        target: np.ndarray | None = None,
+        error: float = 0.0,
+        iterations: int = 0,
+        converged: bool = False,
+    ) -> None:
+        with self._lock:
+            self._ik = IKSnapshot(
+                target=target.copy() if target is not None else None,
+                error=error,
+                iterations=iterations,
+                converged=converged,
+            )
+
+    def update_frame(self, bgr: np.ndarray) -> None:
+        """Store the latest camera frame.  No copy — caller overwrites each tick."""
+        with self._lock:
+            self._frame = bgr
+            self._frame_seq += 1
+
+    def update_detection(
+        self,
+        bboxes: list[tuple[int, int, int, int]],
+        centroids: list[tuple[int, int]],
+        label: str = "",
+    ) -> None:
+        with self._lock:
+            self._detection = DetectionSnapshot(
+                bboxes=list(bboxes),
+                centroids=list(centroids),
+                label=label,
+            )
+
+    def update_loop_hz(self, hz: float) -> None:
+        with self._lock:
+            self._loop_hz = hz
+
+    def update_behavior(self, name: str, status: str) -> None:
+        with self._lock:
+            self._behavior_name = name
+            self._behavior_status = status
+
+    # ---- Reader methods (called by dashboard server) ----
+
+    def snapshot(self) -> dict:
+        """Return a JSON-serializable dict of the current state."""
+        with self._lock:
+            return {
+                "stamp": self._stamp,
+                "joints": {
+                    "arm": self._q_arm.tolist(),
+                    "head": self._q_head.tolist(),
+                    "gripper": self._gripper,
+                    "loads": self._loads.tolist() if self._loads is not None else None,
+                },
+                "ee": self._ee_pos.tolist(),
+                "ik": {
+                    "target": self._ik.target.tolist() if self._ik.target is not None else None,
+                    "error": self._ik.error,
+                    "iterations": self._ik.iterations,
+                    "converged": self._ik.converged,
+                },
+                "detection": {
+                    "bboxes": self._detection.bboxes,
+                    "centroids": self._detection.centroids,
+                    "label": self._detection.label,
+                },
+                "loop_hz": self._loop_hz,
+                "behavior": {
+                    "name": self._behavior_name,
+                    "status": self._behavior_status,
+                },
+            }
+
+    def get_frame(self) -> tuple[np.ndarray | None, int]:
+        """Return (frame, sequence_number).  Frame is raw BGR or None."""
+        with self._lock:
+            return self._frame, self._frame_seq
